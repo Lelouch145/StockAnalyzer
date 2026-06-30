@@ -94,3 +94,4 @@ app.MapGet("/stock/{ticker}/history", async (string ticker, StockService service
 });
 
 app.Run();
+public partial class Program { }

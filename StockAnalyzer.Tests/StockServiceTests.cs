@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using StockAnalyzer.Api.Services;
 using Microsoft.Extensions.Configuration;
+using System.Drawing;
 
 public class StockServiceTests
 {
@@ -38,7 +39,9 @@ public class StockServiceTests
         """;
 
         HttpResponseMessage fakeData = new HttpResponseMessage(HttpStatusCode.OK);
+        
         fakeData.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        
 
         FakeHttpMessageHandler handler = new FakeHttpMessageHandler(fakeData);
         HttpClient httpClient = new HttpClient(handler);
@@ -57,5 +60,67 @@ public class StockServiceTests
         Assert.Equal(100, result.History[0].Close);
         Assert.Equal(20_200, result.History[0].Volume);
 
+    }
+    [Fact]
+    public async Task GetStockHistoryAsync_ServerError_ReturnsExternalApiError()
+    {
+        HttpResponseMessage fakeData = new HttpResponseMessage(HttpStatusCode.InternalServerError);
+
+        FakeHttpMessageHandler handler = new FakeHttpMessageHandler(fakeData);
+
+        HttpClient client = new HttpClient(handler);
+        var config = new ConfigurationBuilder().Build();
+        StockService service = new StockService(client, config);
+
+        var result = await service.GetStockHistoryAsync("Test");
+
+        Assert.Equal(StockApiError.ExternalApiError, result.ErrorType);
+    }
+
+    [Fact]
+    public async Task GetStockHistoryAsync_ValidHttp_ButNoData()
+    {
+
+        string json = """
+        {
+            
+                "Time Series (Daily)": {
+            }
+        }
+        """;
+        HttpResponseMessage fakeData = new HttpResponseMessage(HttpStatusCode.OK);
+        fakeData.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        FakeHttpMessageHandler handler = new FakeHttpMessageHandler(fakeData);
+
+        HttpClient client = new HttpClient(handler);
+
+        var config = new ConfigurationBuilder().Build();
+        StockService service = new StockService(client, config);
+
+        var result = await service.GetStockHistoryAsync("TEST");
+        Assert.Equal(StockApiError.NoData, result.ErrorType);
+    }
+
+    [Fact]
+    public async Task GetStockHistoryAsync_InvalidTicker()
+    {
+        string json = """
+            {
+                "Time Series (Daily)": {
+                "2026-06-26":{}
+                }
+            }
+        """;
+
+        HttpResponseMessage fakeData = new HttpResponseMessage(HttpStatusCode.OK);
+        fakeData.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        FakeHttpMessageHandler handler = new FakeHttpMessageHandler(fakeData);
+        HttpClient client = new HttpClient(handler);
+        var config = new ConfigurationBuilder().Build();
+
+        StockService service = new StockService(client, config);
+
+        var result = await service.GetStockHistoryAsync(" ");
+        Assert.Equal(StockApiError.InvalidTicker, result.ErrorType);
     }
 }
